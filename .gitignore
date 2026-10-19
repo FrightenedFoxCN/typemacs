@@ -1,0 +1,6 @@
+*.elc
+*-autoloads.el
+.DS_Store
+examples/*.pdf
+examples/*.svg
+examples/*.png
