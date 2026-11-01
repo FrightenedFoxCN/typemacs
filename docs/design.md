@@ -1,6 +1,6 @@
 # 架构与实现边界
 
-这个版本实现预览工作台的最小闭环，复用 Tinymist 自带页面，不维护渲染器或 VS Code Webview 的副本。
+预览工作台复用 Tinymist 自带页面，不维护渲染器或 VS Code Webview 的副本。表格编辑直接操作源码，与预览和语言服务独立。
 
 ```mermaid
 flowchart LR
@@ -20,6 +20,7 @@ flowchart LR
 | `typemacs-eglot.el` | Tinymist 扩展、Eglot 兼容接口、通知与请求适配 |
 | `typemacs-preview.el` | 异步预览启动、浏览器后端、WebKit 窗口 |
 | `typemacs-sync.el` | 双向定位、位置编码、跟随节流 |
+| `typemacs-table.el` | Typst 表格词法扫描、单元格导航、对齐及行列编辑 |
 
 只由 Eglot 发送 `didOpen`/`didChange`/`didClose`。启动预览和手动定位前，先刷新该连接所有 managed buffers 的待发修改，以包含尚未保存的主文件和章节。渲染更新从 Tinymist 直接进入浏览器。
 
@@ -47,9 +48,19 @@ flowchart LR
 
 反向定位延迟到 JSON-RPC dispatcher 之外执行，避免打开文件触发嵌套请求。源码窗口与预览窗口分别保存，位置由 Eglot 按协议编码转换，不能使用屏幕列宽。光标跟随使用 buffer-local 空闲计时器，反向定位后抑制一次回传。
 
+## 表格编辑边界
+
+`typemacs-table.el` 自行扫描 Typst 的代码、内容块、字符串、数学公式、raw 文本与嵌套注释，不依赖 major mode 的 syntax table 或 tree-sitter。扫描结果按修改计数和可访问范围缓存；扫描时读取完整词法上下文，只选择包含光标且完全可访问的最内层完整表格，编辑不越过 narrowing 边界。
+
+参数模型保留单元格源码和注释，将连续的表体单元格、`table.header`、`table.footer` 分为独立区段。行编辑在区段内进行，列编辑同步所有区段及字面量列宽元组。对齐按显示宽度补空格，多行内容保持原文；缺少的末行单元格显式补空。改动使用 `atomic-change-group`，相同格式不重写 buffer。
+
+表格按键通过 keymap filter 仅在支持的单元格内生效，其他位置交还原绑定。这个模块不求值 Typst，不推断动态列数、展开内容、`table.cell` 的布局以及横竖线；显式命令对不支持的形式报错。它产生普通 buffer 修改，由已有 Eglot 同步链路发送。
+
 ## 验证范围
 
 ERT 覆盖 Unicode/emoji/tab 与窄化 buffer 的位置转换、共享会话、重复启动、启动取消后的迟到回复、任务清理、计时器清理和浏览器回退。真实 Tinymist 测试覆盖本地 HTTP 前端、未保存的 include 文件、错误恢复、定位命令与共享语言服务。
+
+表格 ERT 覆盖单元格导航、末行追加、行列增删和移动、表头表尾、列宽、嵌套语法与注释、Unicode 对齐、按键回退、narrowing、缓存失效及单步撤销。可用时调用真实 Typst 编译编辑后的源码。
 
 需要图形界面手动检查：内嵌页面可见、预览点击跳回章节、源码定位滚动、焦点切换、窗口缩放、杀死预览 buffer 后侧窗消失。
 

@@ -15,6 +15,7 @@
 ;;; Code:
 
 (require 'typemacs-sync)
+(require 'typemacs-table)
 
 (defvar-local typemacs--pending-start nil
   "Main file and browser preference awaiting an Eglot connection.")
@@ -50,6 +51,7 @@ For full syntax highlighting and indentation, install `typst-ts-mode'."
                        ("m" . typemacs-set-main-file) ("s" . typemacs-status)
                        ("w" . typemacs-switch-window)))
       (define-key prefix (kbd (car binding)) (cdr binding)))
+    (typemacs-table-bind-keys map)
     map)
   "Keymap for `typemacs-mode'.")
 
